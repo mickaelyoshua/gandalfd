@@ -1,2 +1,12 @@
-/plan.md
-/gandalfd
+/target
+**/*.rs.bk
+.env
+AGENTS.md
+plan.md
+
+
+# Added by cargo
+#
+# already existing elements were commented out
+
+#/target
