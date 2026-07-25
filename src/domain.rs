@@ -107,3 +107,27 @@ mod tests {
         assert!(DomainName::try_from("invalid!").is_err());
     }
 }
+
+#[cfg(test)]
+mod proptests {
+    use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn doesnt_crash_on_random_strings(ref s in "\\PC*") {
+            let _ = DomainRef::parse(s);
+            let _ = DomainName::try_from(s.as_str());
+        }
+
+        #[test]
+        fn rejects_uppercase(ref s in "[a-z0-9-]*[A-Z][a-z0-9-]*") {
+            assert_eq!(DomainRef::parse(s), Err(DomainError::NotLowercase));
+        }
+
+        #[test]
+        fn accepts_valid_domains(ref s in "[a-z0-9]{1,10}(\\.[a-z0-9]{1,10}){1,3}") {
+            prop_assert!(DomainRef::parse(s).is_ok());
+        }
+    }
+}
