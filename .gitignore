@@ -3,7 +3,7 @@
 .env
 AGENTS.md
 plan.md
-
+config.toml
 
 # Added by cargo
 #

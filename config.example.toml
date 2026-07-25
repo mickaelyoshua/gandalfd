@@ -1,0 +1,6 @@
+# Exemplo de configuração padrão para rodar localmente
+port = 5353
+upstream_dns = "1.1.1.1:53"
+blocklist_urls = [
+    "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"
+]
