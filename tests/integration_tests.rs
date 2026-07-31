@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use gandalfd::blocklist::OptimizedBlocklist;
+    use gandalfd::blocklist::Blocklist;
     use gandalfd::handler::GandalfHandler;
     use hickory_resolver::config::{NameServerConfig, ResolverConfig, ResolverOpts};
     use hickory_resolver::{TokioResolver, net::runtime::TokioRuntimeProvider};
@@ -73,7 +73,7 @@ mod tests {
         *builder.options_mut() = opts;
         let resolver = builder.build().unwrap();
 
-        let blocklist = OptimizedBlocklist::parse_list("blocked.com");
+        let blocklist = Blocklist::parse_list("blocked.com");
         let handler = GandalfHandler {
             blocklist: Arc::new(blocklist),
             resolver,
@@ -119,5 +119,64 @@ mod tests {
             })
             .collect();
         assert_eq!(ips, vec![std::net::Ipv4Addr::new(93, 184, 216, 34)]);
+    }
+
+    #[tokio::test]
+    async fn test_blocklist_load_from_urls() {
+        use mockito::Server;
+
+        let mut server1 = Server::new_async().await;
+        let mock1 = server1
+            .mock("GET", "/")
+            .with_status(200)
+            .with_body("0.0.0.0 ads.com\n127.0.0.1 tracker.com")
+            .create_async()
+            .await;
+
+        let mut server2 = Server::new_async().await;
+        let mock2 = server2
+            .mock("GET", "/")
+            .with_status(200)
+            .with_body("0.0.0.0 malware.org\n#comment\n")
+            .create_async()
+            .await;
+
+        let urls = vec![
+            server1.url(),
+            server2.url(),
+            "http://invalid-url.local".to_string(),
+        ];
+
+        let blocklist = gandalfd::blocklist::Blocklist::load_from_urls(&urls).await;
+
+        mock1.assert_async().await;
+        mock2.assert_async().await;
+
+        let ads = gandalfd::domain::DomainRef::parse("ads.com").unwrap();
+        let malware = gandalfd::domain::DomainRef::parse("malware.org").unwrap();
+        let safe = gandalfd::domain::DomainRef::parse("safe.com").unwrap();
+
+        assert!(blocklist.is_blocked(ads));
+        assert!(blocklist.is_blocked(malware));
+        assert!(!blocklist.is_blocked(safe));
+
+        let _ = std::fs::remove_file("storage_0.txt");
+        let _ = std::fs::remove_file("storage_1.txt");
+        let _ = std::fs::remove_file("storage_2.txt");
+    }
+
+    #[tokio::test]
+    async fn test_app_build() {
+        use gandalfd::app::GandalfApp;
+        use gandalfd::settings::AppSettings;
+
+        let config = AppSettings {
+            port: 0,
+            upstream_dns: "127.0.0.1".to_string(),
+            blocklist_urls: vec![],
+        };
+
+        let result = GandalfApp::build(config).await;
+        assert!(result.is_ok(), "App should build successfully");
     }
 }

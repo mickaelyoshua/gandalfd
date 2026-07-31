@@ -1,7 +1,4 @@
-use crate::{
-    blocklist::OptimizedBlocklist,
-    domain::{Blocklist, DomainRef},
-};
+use crate::{blocklist::Blocklist, domain::DomainRef};
 use hickory_resolver::TokioResolver;
 use hickory_server::{
     proto::op::{Header, HeaderCounts, ResponseCode},
@@ -17,7 +14,7 @@ use tracing::{debug, error, info};
 /// 1. Synchronous O(1) local lookup in the blocklist.
 /// 2. If clean, forwards the query asynchronously to an upstream resolver.
 pub struct GandalfHandler {
-    pub blocklist: Arc<OptimizedBlocklist>,
+    pub blocklist: Arc<Blocklist>,
     pub resolver: TokioResolver,
 }
 
