@@ -4,7 +4,7 @@ use reqwest::Client;
 use tokio::fs;
 
 pub struct Fetcher {
-    cache_path: PathBuf,
+    local_path: PathBuf,
     url: String,
 }
 
@@ -12,30 +12,30 @@ pub struct Fetcher {
 pub enum FetchError {
     #[error("network or request error: {0}")]
     Network(#[from] reqwest::Error),
-    #[error("io error accessing cache: {0}")]
+    #[error("io error accessing storage: {0}")]
     Io(#[from] std::io::Error),
 }
 
 impl Fetcher {
-    pub fn new(url: &str, cache_path: &Path) -> Self {
+    pub fn new(url: &str, local_path: &Path) -> Self {
         Self {
-            cache_path: cache_path.to_path_buf(),
+            local_path: local_path.to_path_buf(),
             url: url.to_string(),
         }
     }
 
-    /// Retrieves list data, prioritizing the local cache.
+    /// Retrieves list data, prioritizing the local storage.
     ///
-    /// Note: This method does NOT check for cache staleness/TTL. If the file exists,
-    /// it is deemed valid forever. Cache invalidation and updates must be orchestrated
+    /// Note: This method does NOT check for file staleness/TTL. If the file exists,
+    /// it is deemed valid forever. File updates must be orchestrated
     /// externally (e.g., via a scheduler or cron job) by calling `force_update`.
     pub async fn get_data(&self) -> Result<String, FetchError> {
-        if let Ok(data) = fs::read_to_string(&self.cache_path).await {
+        if let Ok(data) = fs::read_to_string(&self.local_path).await {
             return Ok(data);
         }
 
         self.force_update().await?;
-        let data = fs::read_to_string(&self.cache_path).await?;
+        let data = fs::read_to_string(&self.local_path).await?;
         Ok(data)
     }
 
@@ -51,9 +51,17 @@ impl Fetcher {
 
         // Atomic write: Avoids corrupted file on electric failure.
         // Crucial for Raspberry Pi reliability where power drops are frequent during writes.
-        let tmp_path = self.cache_path.with_extension("tmp");
-        fs::write(&tmp_path, &bytes).await?;
-        fs::rename(&tmp_path, &self.cache_path).await?;
+        let tmp_path = self.local_path.with_extension("tmp");
+
+        if let Err(e) = fs::write(&tmp_path, &bytes).await {
+            let _ = fs::remove_file(&tmp_path).await;
+            return Err(e.into());
+        }
+
+        if let Err(e) = fs::rename(&tmp_path, &self.local_path).await {
+            let _ = fs::remove_file(&tmp_path).await;
+            return Err(e.into());
+        }
 
         Ok(())
     }
@@ -65,13 +73,13 @@ mod tests {
     use tempfile::tempdir;
 
     #[tokio::test]
-    async fn fetcher_reads_from_cache() {
+    async fn fetcher_reads_from_storage() {
         let dir = tempdir().unwrap();
-        let cache = dir.path().join("hosts.txt");
+        let storage = dir.path().join("hosts.txt");
 
-        fs::write(&cache, "0.0.0.0 fake.com").await.unwrap();
+        fs::write(&storage, "0.0.0.0 fake.com").await.unwrap();
 
-        let fetcher = Fetcher::new("http://invalid", &cache);
+        let fetcher = Fetcher::new("http://invalid", &storage);
         let data = fetcher.get_data().await.unwrap();
 
         assert_eq!(data, "0.0.0.0 fake.com");
@@ -88,14 +96,14 @@ mod tests {
             .await;
 
         let dir = tempdir().unwrap();
-        let cache = dir.path().join("downloaded.txt");
+        let storage = dir.path().join("downloaded.txt");
 
-        let fetcher = Fetcher::new(&server.url(), &cache);
+        let fetcher = Fetcher::new(&server.url(), &storage);
         fetcher.force_update().await.unwrap();
 
         mock.assert_async().await;
 
-        let content = fs::read_to_string(&cache).await.unwrap();
+        let content = fs::read_to_string(&storage).await.unwrap();
         assert_eq!(content, "0.0.0.0 download.com");
     }
 
@@ -109,11 +117,11 @@ mod tests {
             .await;
 
         let dir = tempdir().unwrap();
-        let cache = dir.path().join("error.txt");
+        let storage = dir.path().join("error.txt");
 
-        let fetcher = Fetcher::new(&server.url(), &cache);
+        let fetcher = Fetcher::new(&server.url(), &storage);
         let result = fetcher.force_update().await;
         assert!(result.is_err());
-        assert!(!cache.exists());
+        assert!(!storage.exists());
     }
 }
