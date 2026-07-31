@@ -37,7 +37,8 @@ pub struct DomainRef<'a>(&'a str); // Query
 
 impl<'a> DomainRef<'a> {
     pub fn parse(s: &'a str) -> Result<Self, DomainError> {
-        if s.chars().any(|c| c.is_ascii_uppercase()) {
+        // as_bytes is safe because of Design By Contract (RFC 1035, every char on a DNS is ASCII)
+        if s.as_bytes().iter().any(|b| b.is_ascii_uppercase()) {
             return Err(DomainError::NotLowercase);
         }
         validate_domain(s)?;
@@ -63,17 +64,14 @@ fn validate_domain(s: &str) -> Result<(), DomainError> {
             return Err(DomainError::InvalidHyphen);
         }
         if !part
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+            .as_bytes()
+            .iter()
+            .all(|&b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
         {
             return Err(DomainError::InvalidCharacter);
         }
     }
     Ok(())
-}
-
-pub trait Blocklist {
-    fn is_blocked(&self, domain: DomainRef<'_>) -> bool;
 }
 
 #[cfg(test)]
