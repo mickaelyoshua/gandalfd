@@ -37,7 +37,7 @@
 7.2. **~~Multi-URL Blocklist Loading~~** (FEITO)
    - Files: `src/blocklist.rs`
    - Changes: `Blocklist::load_from_urls` implementado para baixar múltiplas listas de forma tolerante a falhas (graceful degradation) e sequencial.
-7.5. **High Availability Upstream DNS** (PRÓXIMO PASSO)
+7.5. **~~High Availability Upstream DNS~~** (FEITO)
    - Files: `src/settings.rs`, `src/app.rs`
    - Changes: Mudar `upstream_dns` de `String` para `Vec<String>`. Iterar no `app.rs` criando múltiplos `NameServerConfig` no `ResolverConfig` para failover automático do Hickory.
 8. **Phase 2: Trie Implementation** (FUTURE)

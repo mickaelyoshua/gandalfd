@@ -125,6 +125,10 @@ mod tests {
     async fn test_blocklist_load_from_urls() {
         use mockito::Server;
 
+        let _ = std::fs::remove_file("storage_0.txt");
+        let _ = std::fs::remove_file("storage_1.txt");
+        let _ = std::fs::remove_file("storage_2.txt");
+
         let mut server1 = Server::new_async().await;
         let mock1 = server1
             .mock("GET", "/")
@@ -172,7 +176,11 @@ mod tests {
 
         let config = AppSettings {
             port: 0,
-            upstream_dns: "127.0.0.1".to_string(),
+            upstream_dns: vec![
+                "127.0.0.1:53".to_string(),
+                "1.1.1.1:53".to_string(),
+                "[::1]:53".to_string(),
+            ],
             blocklist_urls: vec![],
         };
 

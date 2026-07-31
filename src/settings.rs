@@ -4,7 +4,7 @@ use serde::Deserialize;
 #[derive(Deserialize, Debug, Clone)]
 pub struct AppSettings {
     pub port: u16,
-    pub upstream_dns: String,
+    pub upstream_dns: Vec<String>,
     pub blocklist_urls: Vec<String>,
 }
 

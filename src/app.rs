@@ -18,9 +18,20 @@ impl GandalfApp {
     pub async fn build(config: AppSettings) -> Result<Self, Box<dyn std::error::Error>> {
         let blocklist = Blocklist::load_from_urls(&config.blocklist_urls).await;
 
-        let upstream_ip: std::net::IpAddr = config.upstream_dns.parse()?;
-        let ns = NameServerConfig::udp(upstream_ip);
-        let resolver_config = ResolverConfig::from_parts(None, vec![], vec![ns]);
+        let mut name_servers = Vec::new();
+        for addr_str in config.upstream_dns {
+            let addr: SocketAddr = addr_str.parse()?;
+            let mut conn_udp = hickory_resolver::config::ConnectionConfig::udp();
+            conn_udp.port = addr.port();
+            let mut conn_tcp = hickory_resolver::config::ConnectionConfig::tcp();
+            conn_tcp.port = addr.port();
+            name_servers.push(NameServerConfig::new(
+                addr.ip(),
+                true,
+                vec![conn_udp, conn_tcp],
+            ));
+        }
+        let resolver_config = ResolverConfig::from_parts(None, vec![], name_servers);
 
         let mut builder =
             TokioResolver::builder_with_config(resolver_config, TokioRuntimeProvider::default());
